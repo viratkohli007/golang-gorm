@@ -17,7 +17,7 @@ func main() {
 	router.HandleFunc("/", hello)
 	router.HandleFunc("/as", api.Register)
 	router.HandleFunc("/login", api.Login)
-	router.HandleFunc("/getusers", api.GetUsers)
+	router.HandleFunc("/getusers", api.IsAuthorized(api.GetUsers))
 	router.HandleFunc("/update", api.UpdateUser)
 	router.HandleFunc("/delete/{id}", api.DeleteUser)
 

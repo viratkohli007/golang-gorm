@@ -9,9 +9,30 @@ import (
 	"dbconn"
 	"structs"
 
+	jwt "github.com/dgrijalva/jwt-go"
 	log "github.com/gookit/color"
 	"github.com/gorilla/mux"
 )
+
+var mykey = []byte("MY_SECRET")
+
+//GenerateJwt generaates token
+func GenerateJwt(user, password string) (string, error) {
+	token := jwt.New(jwt.SigningMethodHS256)
+
+	claims := token.Claims.(jwt.MapClaims)
+	claims["authorized"] = true
+	claims["user"] = user
+	claims["password"] = password
+
+	tokenStr, err := token.SignedString(mykey)
+	if err != nil {
+		fmt.Println("Something went wrong")
+		return "", err
+	}
+	return tokenStr, nil
+
+}
 
 //Register To register user
 func Register(w http.ResponseWriter, r *http.Request) {
@@ -32,6 +53,27 @@ func Register(w http.ResponseWriter, r *http.Request) {
 		db.Debug().AutoMigrate(&reg)
 	}
 	db.Create(&reg)
+}
+
+//IsAuthorized check the token
+func IsAuthorized(endpoint func(http.ResponseWriter, *http.Request)) http.HandlerFunc {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Header.Get("token") != "" {
+			token, err := jwt.Parse(r.Header.Get("token"), func(token *jwt.Token) (interface{}, error) {
+				if _, ok := token.Method.(*jwt.SigningMethodHMAC); !ok {
+					return nil, fmt.Errorf("some err")
+				}
+				return mykey, nil
+			})
+			if err != nil {
+			}
+			if token.Valid {
+				endpoint(w, r)
+			}
+		} else {
+			fmt.Println("Not authorized")
+		}
+	})
 }
 
 //Login API
@@ -55,6 +97,11 @@ func Login(w http.ResponseWriter, r *http.Request) {
 	fmt.Println("user", user.Email, loginVar.Email)
 	if user.Email == loginVar.Email {
 		fmt.Println("che")
+		str, err := GenerateJwt(user.Email, user.Password)
+		if err != nil {
+			fmt.Println("error in generating error", err)
+		}
+		w.Write([]byte(str))
 	} else {
 		fmt.Println("nathi user")
 	}
@@ -62,6 +109,7 @@ func Login(w http.ResponseWriter, r *http.Request) {
 
 //GetUsers Get all users API
 func GetUsers(w http.ResponseWriter, r *http.Request) {
+	fmt.Println(r.Header.Get("token"))
 	var user structs.User
 	db, err := dbconn.OpenConnection()
 	if err != nil {
